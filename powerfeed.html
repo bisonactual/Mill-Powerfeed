@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<title>Power Feed</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:        #0d0e0f;
+  --bg2:       #161819;
+  --bg3:       #1e2022;
+  --border:    #2e3133;
+  --amber:     #ffaa00;
+  --amber-dim: #7a5200;
+  --green:     #39d353;
+  --red:       #e03e3e;
+  --red-dark:  #5a1010;
+  --text:      #e8e0d0;
+  --text-dim:  #6b6460;
+  --accent:    #4a9eff;
+}
+
+html, body {
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, sans-serif;
+  -webkit-tap-highlight-color: transparent;
+  overflow-x: hidden;
+}
+
+.app {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+  max-width: 480px;
+  margin: 0 auto;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* ── Connection bar ── */
+.conn-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+}
+.conn-dot {
+  width: 10px; height: 10px; border-radius: 50%;
+  background: var(--text-dim); flex-shrink: 0;
+  transition: background 0.3s;
+}
+.conn-dot.on { background: var(--green); box-shadow: 0 0 7px var(--green); }
+.conn-ip {
+  flex: 1;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text);
+  font-family: monospace;
+  font-size: 15px;
+  padding: 7px 10px;
+  outline: none;
+  min-width: 0;
+}
+.conn-ip:focus { border-color: var(--accent); }
+.conn-btn {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  padding: 7px 14px;
+  text-transform: uppercase;
+  cursor: pointer;
+  white-space: nowrap;
+  touch-action: manipulation;
+  transition: all 0.15s;
+}
+.conn-btn.on { border-color: var(--green); color: var(--green); }
+
+/* ── Status bar ── */
+.status-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 14px;
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.move-indicator { display: flex; align-items: center; gap: 7px; }
+.move-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--green);
+  box-shadow: 0 0 6px var(--green);
+  animation: blink 0.6s ease-in-out infinite alternate;
+  display: none;
+}
+.move-dot.visible { display: block; }
+@keyframes blink { from { opacity:1; } to { opacity:0.25; } }
+
+/* ── Banners ── */
+.readonly-banner {
+  display: none;
+  background: repeating-linear-gradient(45deg,#3a2000,#3a2000 10px,#2a1800 10px,#2a1800 20px);
+  color: var(--amber);
+  text-align: center;
+  padding: 9px;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  border-bottom: 2px solid var(--amber-dim);
+}
+.readonly-banner.visible { display: block; }
+.error-toast {
+  display: none;
+  background: var(--red-dark);
+  color: #ffaaaa;
+  text-align: center;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.error-toast.visible { display: block; }
+
+/* ── Content ── */
+.content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 12px 14px;
+  gap: 10px;
+}
+
+/* ── Position display ── */
+.pos-panel {
+  background: #0a0a00;
+  border: 2px solid var(--amber-dim);
+  border-radius: 6px;
+  padding: 14px 16px 12px;
+}
+.pos-readout {
+  font-family: monospace;
+  font-size: 58px;
+  color: var(--amber);
+  text-align: right;
+  line-height: 1;
+  text-shadow: 0 0 20px rgba(255,170,0,0.35);
+  transition: color 0.1s;
+}
+.pos-readout.moving {
+  color: #ffcc44;
+  text-shadow: 0 0 30px rgba(255,210,68,0.6);
+}
+.pos-unit {
+  font-size: 14px; color: var(--amber-dim);
+  text-align: right; margin-top: 4px;
+  letter-spacing: 0.12em; text-transform: uppercase; font-weight: 600;
+}
+.pos-actions {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 8px; margin-top: 10px;
+}
+
+/* ── Panel ── */
+.panel {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 11px 13px;
+}
+.panel-label {
+  font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--text-dim); margin-bottom: 8px; font-weight: 600;
+}
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.seg-row { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+
+/* ── Speed ── */
+.speed-val { font-family: monospace; font-size: 30px; text-align: right; margin-bottom: 8px; }
+.speed-val small { font-size: 16px; color: var(--text-dim); margin-left: 3px; }
+input[type=range] {
+  -webkit-appearance: none; appearance: none;
+  width: 100%; height: 6px; border-radius: 3px;
+  background: var(--bg3); outline: none; cursor: pointer;
+}
+input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 26px; height: 26px; border-radius: 50%;
+  background: var(--accent); border: 2px solid var(--bg2);
+  box-shadow: 0 0 8px rgba(74,158,255,0.5); cursor: pointer;
+}
+input[type=range]::-moz-range-thumb {
+  width: 26px; height: 26px; border-radius: 50%;
+  background: var(--accent); border: 2px solid var(--bg2); cursor: pointer;
+}
+input[type=range]:disabled { opacity: 0.35; }
+
+/* ── Distance input ── */
+.dist-row { display: flex; align-items: center; gap: 8px; }
+.dist-input {
+  flex: 1; min-width: 0;
+  background: var(--bg3); border: 1px solid var(--border); border-radius: 4px;
+  color: var(--text); font-family: monospace; font-size: 26px;
+  padding: 8px 12px; text-align: right; outline: none;
+}
+.dist-input:focus    { border-color: var(--accent); }
+.dist-input:disabled { opacity: 0.35; }
+.dist-unit { font-size: 14px; color: var(--text-dim); font-weight: 600;
+  letter-spacing: 0.08em; min-width: 34px; }
+
+/* ── Direction buttons ── */
+.dir-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.dir-btn {
+  background: var(--bg3); border: 2px solid var(--border); border-radius: 8px;
+  color: var(--text); font-size: 20px; font-weight: 900; letter-spacing: 0.06em;
+  padding: 32px 0; text-transform: uppercase; cursor: pointer;
+  user-select: none; -webkit-user-select: none; touch-action: none;
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  transition: background 0.08s, border-color 0.08s, color 0.08s;
+}
+.dir-btn.active   { background: #0d200d; border-color: var(--green); color: var(--green); }
+.dir-btn:disabled { opacity: 0.3; pointer-events: none; }
+
+/* ── E-Stop ── */
+.estop {
+  background: var(--red-dark); border: 3px solid var(--red); border-radius: 8px;
+  color: #fff; font-size: 22px; font-weight: 900; letter-spacing: 0.2em;
+  padding: 20px; text-transform: uppercase; cursor: pointer; width: 100%;
+  touch-action: manipulation; transition: background 0.1s;
+}
+.estop:active   { background: var(--red); }
+.estop:disabled { opacity: 0.35; pointer-events: none; }
+
+/* ── Buttons ── */
+.btn {
+  background: var(--bg3); border: 1px solid var(--border); border-radius: 4px;
+  color: var(--text); font-size: 14px; font-weight: 700; letter-spacing: 0.08em;
+  padding: 10px 12px; text-transform: uppercase; cursor: pointer;
+  touch-action: manipulation; transition: background 0.1s;
+}
+.btn:active   { background: var(--bg); }
+.btn:disabled { opacity: 0.35; pointer-events: none; }
+
+.seg {
+  background: var(--bg3); border: 1px solid var(--border); border-radius: 4px;
+  color: var(--text-dim); font-size: 14px; font-weight: 700; letter-spacing: 0.08em;
+  padding: 9px 8px; text-transform: uppercase; cursor: pointer;
+  touch-action: manipulation; transition: all 0.1s;
+}
+.seg.active   { background: #0d200d; border-color: var(--green); color: var(--green); }
+.seg:disabled { opacity: 0.35; pointer-events: none; }
+
+.hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <div class="conn-bar">
+    <div class="conn-dot" id="conn-dot"></div>
+    <input class="conn-ip" id="conn-ip" type="text"
+           placeholder="192.168.1.1" inputmode="url" spellcheck="false" />
+    <button class="conn-btn" id="conn-btn" onclick="toggleConnect()">Connect</button>
+  </div>
+
+  <div class="status-bar">
+    <span id="status-label">Not connected</span>
+    <div class="move-indicator">
+      <div class="move-dot" id="move-dot"></div>
+      <span id="move-label"></span>
+    </div>
+  </div>
+
+  <div class="readonly-banner" id="readonly-banner">⚠ Read Only — Panel Active</div>
+  <div class="error-toast"     id="error-toast"></div>
+
+  <div class="content">
+
+    <div class="pos-panel">
+      <div class="pos-readout" id="pos-readout">0.000</div>
+      <div class="pos-unit"    id="pos-unit">mm</div>
+      <div class="pos-actions">
+        <button class="btn" id="btn-zero"    onclick="cmdZero()">Zero</button>
+        <button class="btn" id="btn-set-pos" onclick="cmdSetPos()">Set Position</button>
+      </div>
+    </div>
+
+    <div class="two-col">
+      <div class="panel">
+        <div class="panel-label">Mode</div>
+        <div class="seg-row">
+          <button class="seg active" id="seg-jog"  onclick="setMode('jog')">Jog</button>
+          <button class="seg"        id="seg-dist" onclick="setMode('distance')">Dist</button>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-label">Units</div>
+        <div class="seg-row">
+          <button class="seg active" id="seg-mm"   onclick="setUnits('mm')">mm</button>
+          <button class="seg"        id="seg-inch" onclick="setUnits('inch')">inch</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-label">Speed</div>
+      <div class="speed-val" id="speed-val">50<small>%</small></div>
+      <input type="range" id="speed-slider" min="1" max="100" value="50"
+             oninput="onSpeedInput(this.value)"
+             onchange="send({type:'set_speed',speed:+this.value})" />
+    </div>
+
+    <div class="panel hidden" id="dist-panel">
+      <div class="panel-label">Distance</div>
+      <div class="dist-row">
+        <input class="dist-input" type="number" id="dist-input"
+               value="10.000" min="0.001" step="0.1" inputmode="decimal"
+               onblur="sendDistance()" />
+        <span class="dist-unit" id="dist-unit">mm</span>
+      </div>
+    </div>
+
+    <div class="dir-row">
+      <button class="dir-btn" id="btn-left"
+              onpointerdown="dirDown('left')"
+              onpointerup="dirUp('left')"
+              onpointerleave="dirUp('left')"
+              oncontextmenu="return false">◀ Left</button>
+      <button class="dir-btn" id="btn-right"
+              onpointerdown="dirDown('right')"
+              onpointerup="dirUp('right')"
+              onpointerleave="dirUp('right')"
+              oncontextmenu="return false">Right ▶</button>
+    </div>
+
+    <button class="estop" id="btn-estop" onclick="cmdEstop()">■ E-Stop</button>
+
+  </div>
+</div>
+
+<script>
+// ── State ─────────────────────────────────────────────────────────────────────
+const S = {
+  position: 0, units: 'mm', speed_pct: 50,
+  mode: 'jog', moving: false, direction: null, panel_active: false
+};
+
+let connected = false, ws = null, jogActive = false, errorTimer = null;
+
+// ── Saved IP ──────────────────────────────────────────────────────────────────
+const ipEl = document.getElementById('conn-ip');
+ipEl.value = localStorage.getItem('pf_ip') || '192.168.1.1';
+ipEl.addEventListener('keydown', e => { if (e.key === 'Enter') toggleConnect(); });
+
+// ── WebSocket ─────────────────────────────────────────────────────────────────
+function toggleConnect() {
+  if (connected) {
+    if (ws) { ws.onclose = null; ws.close(); ws = null; }
+    onDisconnect();
+  } else {
+    const ip = ipEl.value.trim();
+    localStorage.setItem('pf_ip', ip);
+    ws = new WebSocket('ws://' + ip + ':8765');
+    ws.onopen    = onConnect;
+    ws.onclose   = onDisconnect;
+    ws.onerror   = () => ws.close();
+    ws.onmessage = onMessage;
+  }
+}
+
+function onConnect() {
+  connected = true;
+  document.getElementById('conn-dot').className  = 'conn-dot on';
+  document.getElementById('conn-btn').className  = 'conn-btn on';
+  document.getElementById('conn-btn').textContent = 'Disconnect';
+  document.getElementById('status-label').textContent = 'Connected';
+  updateDisabled();
+}
+
+function onDisconnect() {
+  connected = false;
+  document.getElementById('conn-dot').className  = 'conn-dot';
+  document.getElementById('conn-btn').className  = 'conn-btn';
+  document.getElementById('conn-btn').textContent = 'Connect';
+  document.getElementById('status-label').textContent = 'Not connected';
+  document.getElementById('move-dot').classList.remove('visible');
+  document.getElementById('move-label').textContent = '';
+  updateDisabled();
+}
+
+function onMessage(evt) {
+  try {
+    const msg = JSON.parse(evt.data);
+    if (msg.type === 'state') {
+      Object.assign(S, msg);
+      render();
+    } else if (msg.type === 'error') {
+      showError(msg.message);
+    }
+  } catch(e) {}
+}
+
+function send(msg) {
+  if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg));
+}
+
+// ── Render ────────────────────────────────────────────────────────────────────
+function render() {
+  // Position
+  document.getElementById('pos-readout').textContent =
+    S.units === 'inch' ? (+S.position).toFixed(4) : (+S.position).toFixed(3);
+  document.getElementById('pos-readout').classList.toggle('moving', S.moving);
+  document.getElementById('pos-unit').textContent = S.units;
+
+  // Moving
+  document.getElementById('move-dot').classList.toggle('visible', S.moving);
+  document.getElementById('move-label').textContent =
+    S.moving ? ('Moving ' + (S.direction === 'left' ? '◀' : '▶')) : 'Idle';
+
+  // Banners
+  document.getElementById('readonly-banner').classList.toggle('visible', S.panel_active);
+
+  // Mode
+  document.getElementById('seg-jog').classList.toggle('active',  S.mode === 'jog');
+  document.getElementById('seg-dist').classList.toggle('active', S.mode === 'distance');
+  document.getElementById('dist-panel').classList.toggle('hidden', S.mode !== 'distance');
+
+  // Units
+  document.getElementById('seg-mm').classList.toggle('active',   S.units === 'mm');
+  document.getElementById('seg-inch').classList.toggle('active', S.units === 'inch');
+  document.getElementById('dist-unit').textContent = S.units;
+
+  // Speed (only update slider if not being dragged)
+  if (document.activeElement !== document.getElementById('speed-slider')) {
+    document.getElementById('speed-val').innerHTML = S.speed_pct + '<small>%</small>';
+    document.getElementById('speed-slider').value  = S.speed_pct;
+  }
+
+  updateDisabled();
+}
+
+function updateDisabled() {
+  const readOnly = connected && S.panel_active;
+  const noMove   = !connected || readOnly;
+  const noCtrl   = readOnly;   // settings work offline
+
+  dis('btn-zero',    !connected || readOnly);
+  dis('btn-set-pos', !connected || readOnly);
+  dis('seg-jog',     noCtrl || S.moving);
+  dis('seg-dist',    noCtrl || S.moving);
+  dis('seg-mm',      noCtrl);
+  dis('seg-inch',    noCtrl);
+  dis('speed-slider',noCtrl);
+  dis('dist-input',  noCtrl);
+  dis('btn-left',    noMove);
+  dis('btn-right',   noMove);
+  dis('btn-estop',   !connected);
+}
+
+function dis(id, val) {
+  const el = document.getElementById(id);
+  if (el) el.disabled = val;
+}
+
+function showError(msg) {
+  const el = document.getElementById('error-toast');
+  el.textContent = '⚠ ' + msg;
+  el.classList.add('visible');
+  if (errorTimer) clearTimeout(errorTimer);
+  errorTimer = setTimeout(() => el.classList.remove('visible'), 3000);
+}
+
+// ── Controls ──────────────────────────────────────────────────────────────────
+function setMode(mode) {
+  S.mode = mode;
+  render();
+  send({ type: 'set_mode', mode });
+}
+
+function setUnits(units) {
+  S.units = units;
+  render();
+  send({ type: 'set_units', units });
+}
+
+function onSpeedInput(val) {
+  S.speed_pct = +val;
+  document.getElementById('speed-val').innerHTML = val + '<small>%</small>';
+}
+
+function sendDistance() {
+  const v = parseFloat(document.getElementById('dist-input').value);
+  if (!isNaN(v) && v > 0) send({ type: 'set_distance', distance: v, units: S.units });
+}
+
+function cmdZero()   { send({ type: 'position_zero' }); }
+function cmdSetPos() {
+  const v = prompt('Set position (' + S.units + '):');
+  if (v !== null && !isNaN(parseFloat(v)))
+    send({ type: 'position_set', position: parseFloat(v), units: S.units });
+}
+
+function dirDown(dir) {
+  if (document.getElementById('btn-' + dir).disabled) return;
+  if (S.mode === 'jog') {
+    jogActive = true;
+    document.getElementById('btn-' + dir).classList.add('active');
+    send({ type: 'jog_start', direction: dir });
+  } else if (!S.moving) {
+    send({ type: 'distance_move', direction: dir });
+  }
+}
+
+function dirUp(dir) {
+  if (S.mode === 'jog' && jogActive) {
+    jogActive = false;
+    document.getElementById('btn-left').classList.remove('active');
+    document.getElementById('btn-right').classList.remove('active');
+    send({ type: 'jog_stop' });
+  }
+}
+
+function cmdEstop() {
+  jogActive = false;
+  document.getElementById('btn-left').classList.remove('active');
+  document.getElementById('btn-right').classList.remove('active');
+  send({ type: 'estop' });
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+updateDisabled();
+</script>
+</body>
+</html>
